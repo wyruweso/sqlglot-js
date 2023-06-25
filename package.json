@@ -1,0 +1,25 @@
+{
+  "name": "sqlglot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "start": "npm run clean && npm run compile && node --experimental-specifier-resolution=node build/index.js",
+    "compile": "npx tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.3.1",
+    "gts": "^3.1.1",
+    "typescript": "^5.1.3"
+  }
+}
