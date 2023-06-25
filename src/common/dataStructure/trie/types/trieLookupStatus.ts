@@ -4,6 +4,7 @@ export type IsPartiallyPresentInTrie = 1;
 
 export type IsNotPresentInTrie = 0;
 
-export type TrieLookupStatus = IsPresentInTrie
-    | IsPartiallyPresentInTrie
-    | IsNotPresentInTrie;
+export type TrieLookupStatus =
+  | IsPresentInTrie
+  | IsPartiallyPresentInTrie
+  | IsNotPresentInTrie;
