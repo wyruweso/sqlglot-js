@@ -15,9 +15,9 @@ export class Trie {
 
   [property: string]: Trie | boolean | Function;
 
-  constructor(keywords: Array<string>, trie?: Trie) {
+  constructor(keywords: Array<string>) {
     for (const keyword of keywords) {
-      let current: Trie = trie || this;
+      let current: Trie = this;
       for (const char of keyword) {
         if (!(char in current)) {
           current[char] = new Trie([]);
