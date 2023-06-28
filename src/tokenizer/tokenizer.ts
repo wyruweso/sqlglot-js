@@ -26,7 +26,7 @@ export class Tokenizer {
   private char = '';
   private end = false;
   private peeked = '';
-  private prev_token_line = -1;
+  private prevTokenLine = -1;
 
   constructor(grammar: TokenizerGrammar, encode: BufferEncoding | null = null) {
     this.grammar = grammar;
@@ -54,10 +54,7 @@ export class Tokenizer {
     this.STRING_ESCAPES = new Set(grammar.STRING_ESCAPES);
     this.IDENTIFIER_ESCAPES = new Set(grammar.IDENTIFIER_ESCAPES);
 
-    this.COMMENTS = {
-      ...this.convertTuplesToObject(grammar.COMMENTS),
-      '{#': '#}', // Ensure Jinja comments are tokenized correctly in all dialects
-    };
+    this.COMMENTS = this.convertTuplesToObject(grammar.COMMENTS, '');
 
     const keywordTrieKeywords = [
       ...Object.keys(grammar.KEYWORDS),
@@ -91,18 +88,17 @@ export class Tokenizer {
     this.char = '';
     this.end = false;
     this.peeked = '';
-    this.prev_token_line = -1;
+    this.prevTokenLine = -1;
   }
 
   convertTuplesToObject(
     tuples: Array<string | Array<string>>,
-    defaultValue?: string
+    nonPairTokensDefaultValue?: string
   ) {
     const convertedObject: Record<string, string> = {};
     tuples.forEach(tuple => {
       if (typeof tuple === 'string') {
-        convertedObject[tuple] =
-          defaultValue === undefined ? tuple : defaultValue;
+        convertedObject[tuple] = nonPairTokensDefaultValue ?? tuple;
       } else {
         convertedObject[tuple[0]] = tuple[1];
       }
@@ -110,16 +106,16 @@ export class Tokenizer {
     return convertedObject;
   }
 
-  quotesToFormat(token_type: TokenType, arr: Array<string>) {
+  quotesToFormat(tokenType: TokenType, arr: Array<string>) {
     const quotes = this.convertTuplesToObject(arr);
     const result: Record<string, [string, TokenType]> = {};
     for (const [key, value] of Object.entries(quotes)) {
-      result[key] = [value, token_type];
+      result[key] = [value, tokenType];
     }
     return result;
   }
 
-  get _text(): string {
+  get text(): string {
     return this.sql.substring(this.start, this.current);
   }
 
@@ -136,7 +132,7 @@ export class Tokenizer {
       const context = this.sql.substring(start, end);
 
       throw new Error(
-        `Error tokenizing '${context}'\n\n Original error: ${
+        `Error tokenizing '${context}'\n\nOriginal error: ${
           (e as Error).message
         }`
       );
@@ -148,7 +144,7 @@ export class Tokenizer {
   scan(until: (() => boolean) | null = null) {
     while (this.size && !this.end) {
       this.start = this.current;
-      this.advance(); //set indexes and last char. If found name or number, set indexes to the end of the name or number
+      this.advance();
 
       if (this.char === null) {
         break;
@@ -194,11 +190,11 @@ export class Tokenizer {
   }
 
   add(tokenType: TokenType, text: string | null = null) {
-    this.prev_token_line = this.line;
+    this.prevTokenLine = this.line;
     this.tokens.push(
       new Token(
         tokenType,
-        text === null ? this._text : text,
+        text ?? this.text,
         this.line,
         this.col,
         this.start,
@@ -247,35 +243,35 @@ export class Tokenizer {
 
     if (alphaNum && /\w/.test(this.char)) {
       // Here we use local variables instead of attributes for better performance
-      let _col = this.col;
-      let _current = this.current;
-      let _end = this.end;
-      let _peek = this.peeked;
+      let col = this.col;
+      let current = this.current;
+      let end = this.end;
+      let peek = this.peeked;
 
-      while (/\w/.test(_peek)) {
-        _col += 1;
-        _current += 1;
-        _end = _current >= this.size;
-        _peek = _end ? '' : this.sql[_current];
+      while (/\w/.test(peek)) {
+        col += 1;
+        current += 1;
+        end = current >= this.size;
+        peek = end ? '' : this.sql[current];
       }
 
-      this.col = _col;
-      this.current = _current;
-      this.end = _end;
-      this.peeked = _peek;
-      this.char = this.sql[_current - 1];
+      this.col = col;
+      this.current = current;
+      this.end = end;
+      this.peeked = peek;
+      this.char = this.sql[current - 1];
     }
   }
 
   scanKeywords() {
     let size = 0;
     let word = null;
-    let chars = this._text;
+    let chars = this.text;
     let char = chars;
-    let prev_space = false;
+    let prevSpace = false;
     let skip = false;
     let trie = this.KEYWORD_TRIE;
-    let single_token = this.grammar.SINGLE_TOKENS[char];
+    let singleToken = this.grammar.SINGLE_TOKENS[char];
     let result;
 
     while (chars) {
@@ -298,15 +294,15 @@ export class Tokenizer {
 
       if (end < this.size) {
         char = this.sql[end];
-        single_token = single_token || this.grammar.SINGLE_TOKENS[char];
-        const is_space = this.grammar.WHITE_SPACE[char];
+        singleToken = singleToken || this.grammar.SINGLE_TOKENS[char];
+        const isSpace = this.grammar.WHITE_SPACE[char];
 
-        if (!is_space || !prev_space) {
-          if (is_space) {
+        if (!isSpace || !prevSpace) {
+          if (isSpace) {
             char = ' ';
           }
           chars += char;
-          prev_space = Boolean(is_space);
+          prevSpace = Boolean(isSpace);
           skip = false;
         } else {
           skip = true;
@@ -318,9 +314,9 @@ export class Tokenizer {
     }
 
     word =
-      !single_token && !this.grammar.WHITE_SPACE[chars[chars.length - 1]]
-        ? null
-        : word;
+      singleToken || this.grammar.WHITE_SPACE[chars[chars.length - 1]]
+        ? word
+        : null;
 
     if (!word) {
       if (this.char in this.grammar.SINGLE_TOKENS) {
@@ -343,31 +339,31 @@ export class Tokenizer {
     this.add(this.grammar.KEYWORDS[word], word);
   }
 
-  scanComment(comment_start: string): boolean {
-    if (!(comment_start in this.COMMENTS)) {
+  scanComment(commentStart: string): boolean {
+    if (!(commentStart in this.COMMENTS)) {
       return false;
     }
 
-    const comment_start_line = this.line;
-    const comment_start_size = comment_start.length;
-    const comment_end = this.COMMENTS[comment_start];
+    const commentStartLine = this.line;
+    const commentStartSize = commentStart.length;
+    const commentEnd = this.COMMENTS[commentStart];
 
-    if (comment_end) {
+    if (commentEnd) {
       // Skip the comment's start delimiter
-      this.advance(comment_start_size);
+      this.advance(commentStartSize);
 
-      const comment_end_size = comment_end.length;
-      while (!this.end && this.chars(comment_end_size) !== comment_end) {
+      const commentEndSize = commentEnd.length;
+      while (!this.end && this.chars(commentEndSize) !== commentEnd) {
         this.advance(1, true);
       }
 
       this.comments.push(
-        this._text.substring(
-          comment_start_size,
-          this._text.length - comment_end_size + 1
+        this.text.substring(
+          commentStartSize,
+          this.text.length - commentEndSize + 1
         )
       );
-      this.advance(comment_end_size - 1);
+      this.advance(commentEndSize - 1);
     } else {
       while (
         !this.end &&
@@ -376,14 +372,14 @@ export class Tokenizer {
       ) {
         this.advance(1, true);
       }
-      this.comments.push(this._text.substring(comment_start_size));
+      this.comments.push(this.text.substring(commentStartSize));
     }
 
-    if (comment_start_line === this.prev_token_line) {
+    if (commentStartLine === this.prevTokenLine) {
       const tokenToUpdate = this.tokens[this.tokens.length - 1];
       tokenToUpdate.appendComments(this.comments);
       this.comments = [];
-      this.prev_token_line = this.line;
+      this.prevTokenLine = this.line;
     }
 
     return true;
@@ -425,7 +421,7 @@ export class Tokenizer {
         scientific++;
         this.advance();
       } else if (/\w/.test(this.peek())) {
-        const number_text = this._text;
+        const number_text = this.text;
         let literal = '';
 
         while (
@@ -494,7 +490,7 @@ export class Tokenizer {
         break;
       }
     }
-    return this._text;
+    return this.text;
   }
 
   scanString(start: string): boolean {
@@ -557,7 +553,7 @@ export class Tokenizer {
     const tokenType =
       this.tokens?.[this.tokens.length - 1]?.token_type === TokenType.PARAMETER
         ? TokenType.VAR
-        : this.grammar.KEYWORDS[this._text.toUpperCase()] || TokenType.VAR;
+        : this.grammar.KEYWORDS[this.text.toUpperCase()] || TokenType.VAR;
 
     this.add(tokenType);
   }
@@ -565,7 +561,7 @@ export class Tokenizer {
   extractString(delimiter: string, escapes: Set<string> | null = null): string {
     let text = '';
     const delimSize = delimiter.length;
-    escapes = escapes === null ? this.STRING_ESCAPES : escapes;
+    escapes = escapes ?? this.STRING_ESCAPES;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
