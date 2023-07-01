@@ -51,9 +51,7 @@ export class Expression {
    * */
   _args: Record<string, any>
 
-  _meta: Record<string, any> | null;
-
-  _hash: number | null;
+  _meta: Record<string, any>;
 
   constructor(
     argTypes: Record<string, boolean> = {"this": true},
@@ -67,8 +65,7 @@ export class Expression {
     this._argKey = null;
     this._comments = [];
     this._type = null;
-    this._meta = null;
-    this._hash = null;
+    this._meta = {};
 
     for (const argKey of Object.keys(args)) {
       const value = args[argKey];
@@ -109,6 +106,37 @@ export class Expression {
     return this.getArgument('expressions') || [];
   }
 
+  getType(): ExpressionDataType | null {
+    return this._type;
+  }
+
+  setType(newType?: ExpressionDataType) {
+    if (newType && !(newType instanceof ExpressionDataType)) {
+      newType = ExpressionDataType.build(newType);
+    }
+    this._type = newType || null;
+  }
+
+  getMeta(): Record<string, any> {
+    return this._meta;
+  }
+
+  addComments(newComments?: string[]) {
+    if (newComments) {
+      this._comments.push(...newComments);
+    }
+  }
+
+  getDepth(): number {
+    if (this._parent) {
+      return this._parent.getDepth() + 1;
+    }
+    return 0;
+  }
+
+  getArgTypes(): Record<string, boolean> {
+    return this._argTypes;
+  }
 
 }
 
@@ -122,7 +150,7 @@ export class ExpressionDataType extends Expression {
     super(argTypes, args);
   }
 
-  static build(): ExpressionDataType {
+  static build(arg: any): ExpressionDataType {
     return new ExpressionDataType({
       "this": true,
       "expressions": false,
