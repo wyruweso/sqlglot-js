@@ -6,12 +6,8 @@ export class Star extends Expression {
     super({"except": false, "replace": false});
   }
 
-  getName() {
-    return '*';
-  }
-
   getOutputName() {
-    return this.getName();
+    return '*';
   }
 
 }

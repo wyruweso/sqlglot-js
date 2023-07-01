@@ -1,6 +1,5 @@
 import {Expression} from "./expression";
 
-export class Null extends Expression {
-
+export class From extends Expression {
 
 }
